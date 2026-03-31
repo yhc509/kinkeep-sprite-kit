@@ -1,0 +1,19 @@
+{
+  "name": "com.kinkeep.sprite-kit",
+  "version": "0.1.0",
+  "displayName": "KinKeep SpriteKit",
+  "description": "Frame-based sprite animation system for Unity. Supports directional clips, frame events, and per-frame control.",
+  "unity": "6000.0",
+  "author": {
+    "name": "KinKeep"
+  },
+  "dependencies": {
+    "com.unity.2d.animation": "10.0.0"
+  },
+  "keywords": [
+    "sprite",
+    "animation",
+    "2d",
+    "frame-animation"
+  ]
+}

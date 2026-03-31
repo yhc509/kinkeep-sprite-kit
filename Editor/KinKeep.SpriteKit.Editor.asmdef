@@ -1,0 +1,19 @@
+{
+  "name": "KinKeep.SpriteKit.Editor",
+  "rootNamespace": "KinKeep.SpriteKit.Editor",
+  "references": [
+    "KinKeep.SpriteKit.Runtime",
+    "Unity.2D.Animation"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
