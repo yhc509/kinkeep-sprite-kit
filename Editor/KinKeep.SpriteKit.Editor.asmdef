@@ -3,7 +3,7 @@
   "rootNamespace": "KinKeep.SpriteKit.Editor",
   "references": [
     "KinKeep.SpriteKit.Runtime",
-    "Unity.2D.Animation"
+    "Unity.2D.Animation.Runtime"
   ],
   "includePlatforms": [
     "Editor"
