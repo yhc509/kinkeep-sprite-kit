@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace KinKeep.SpriteKit
 {
@@ -14,58 +15,106 @@ namespace KinKeep.SpriteKit
     [Serializable]
     public struct FrameEvent
     {
-        public FrameEventType Type;
-        public string Param;
+        [FormerlySerializedAs("Type")]
+        [SerializeField] private FrameEventType _type;
+        [FormerlySerializedAs("Param")]
+        [SerializeField] private string _param;
+
+        public FrameEventType Type => _type;
+        public string Param => _param;
+
+        public FrameEvent(FrameEventType type, string param)
+        {
+            _type = type;
+            _param = param;
+        }
     }
 
     [Serializable]
     public class UnitAnimationFrame
     {
-        public float Duration = 0.1f;
-        public bool FlipX;
-        public FrameEvent[] Events;
+        [FormerlySerializedAs("Duration")]
+        [SerializeField] private float _duration = 0.1f;
+        [FormerlySerializedAs("FlipX")]
+        [SerializeField] private bool _flipX;
+        [FormerlySerializedAs("Events")]
+        [SerializeField] private FrameEvent[] _events;
+
+        public float Duration => _duration;
+        public bool FlipX => _flipX;
+        public FrameEvent[] Events => _events;
+
+        public UnitAnimationFrame(float duration, bool flipX, FrameEvent[] events)
+        {
+            _duration = duration;
+            _flipX = flipX;
+            _events = events;
+        }
     }
 
     [Serializable]
     public class UnitAnimationClip
     {
-        public string Name;
-        public Sprite[] Sprites;
-        public bool Loop;
-        public float DefaultDuration = 0.1f;
-        public UnitAnimationFrame[] Frames;
+        [FormerlySerializedAs("Name")]
+        [SerializeField] private string _name;
+        [FormerlySerializedAs("Sprites")]
+        [SerializeField] private Sprite[] _sprites;
+        [FormerlySerializedAs("Loop")]
+        [SerializeField] private bool _loop;
+        [FormerlySerializedAs("DefaultDuration")]
+        [SerializeField] private float _defaultDuration = 0.1f;
+        [FormerlySerializedAs("Frames")]
+        [SerializeField] private UnitAnimationFrame[] _frames;
+
+        public string Name => _name;
+        public Sprite[] Sprites => _sprites;
+        public bool Loop => _loop;
+        public float DefaultDuration => _defaultDuration;
+        public UnitAnimationFrame[] Frames => _frames;
+
+        public UnitAnimationClip(
+            string name,
+            Sprite[] sprites,
+            bool loop,
+            float defaultDuration,
+            UnitAnimationFrame[] frames)
+        {
+            _name = name;
+            _sprites = sprites;
+            _loop = loop;
+            _defaultDuration = defaultDuration;
+            _frames = frames;
+        }
 
         public bool SyncFrames()
         {
-            int spriteCount = Sprites?.Length ?? 0;
+            int spriteCount = _sprites?.Length ?? 0;
             if (spriteCount == 0)
             {
-                if (Frames == null)
+                if (_frames == null)
                     return false;
 
-                Frames = null;
+                _frames = null;
                 return true;
             }
 
-            bool isDirty = Frames == null || Frames.Length != spriteCount;
+            bool isDirty = _frames == null || _frames.Length != spriteCount;
             UnitAnimationFrame[] nextFrames = isDirty
                 ? new UnitAnimationFrame[spriteCount]
-                : Frames;
+                : _frames;
 
             for (int i = 0; i < spriteCount; i++)
             {
-                UnitAnimationFrame frame = Frames != null && i < Frames.Length
-                    ? Frames[i]
+                UnitAnimationFrame frame = _frames != null && i < _frames.Length
+                    ? _frames[i]
                     : null;
 
                 if (frame == null)
                 {
-                    frame = new UnitAnimationFrame
-                    {
-                        Duration = DefaultDuration,
-                        FlipX = false,
-                        Events = Array.Empty<FrameEvent>()
-                    };
+                    frame = new UnitAnimationFrame(
+                        _defaultDuration,
+                        false,
+                        Array.Empty<FrameEvent>());
                     isDirty = true;
                 }
 
@@ -73,27 +122,27 @@ namespace KinKeep.SpriteKit
             }
 
             if (isDirty)
-                Frames = nextFrames;
+                _frames = nextFrames;
 
             return isDirty;
         }
 
         public float GetFrameDuration(int index)
         {
-            if (Frames == null || index < 0 || index >= Frames.Length)
-                return DefaultDuration;
+            if (_frames == null || index < 0 || index >= _frames.Length)
+                return _defaultDuration;
 
-            UnitAnimationFrame frame = Frames[index];
+            UnitAnimationFrame frame = _frames[index];
             if (frame == null)
-                return DefaultDuration;
+                return _defaultDuration;
 
             float duration = frame.Duration;
-            return duration > 0f ? duration : DefaultDuration;
+            return duration > 0f ? duration : _defaultDuration;
         }
 
         public float GetTotalDuration()
         {
-            int count = Sprites?.Length ?? 0;
+            int count = _sprites?.Length ?? 0;
             if (count == 0)
                 return 0f;
 
@@ -346,49 +395,6 @@ namespace KinKeep.SpriteKit
             return true;
         }
 
-        public bool TryParseGeneratorDirection(string categoryName, out string actionName, out int directionIndex)
-        {
-            actionName = string.Empty;
-            directionIndex = GetFallbackDirectionIndex();
-
-            string normalizedCategoryName = NormalizeName(categoryName);
-            if (string.IsNullOrEmpty(normalizedCategoryName))
-                return false;
-
-            IReadOnlyList<GeneratorDirectionEntry> generatorDirections = GetGeneratorDirectionEntries();
-            var sortedEntries = new List<SortedGeneratorDirectionEntry>(generatorDirections.Count);
-            for (int i = 0; i < generatorDirections.Count; i++)
-            {
-                GeneratorDirectionEntry entry = generatorDirections[i];
-                string suffix = NormalizeName(entry.Suffix);
-                if (string.IsNullOrEmpty(suffix))
-                    continue;
-
-                sortedEntries.Add(new SortedGeneratorDirectionEntry(entry, suffix));
-            }
-
-            sortedEntries.Sort(SortedGeneratorDirectionEntryComparer.Instance);
-            for (int i = 0; i < sortedEntries.Count; i++)
-            {
-                SortedGeneratorDirectionEntry sortedEntry = sortedEntries[i];
-                if (!normalizedCategoryName.EndsWith(sortedEntry.Suffix, StringComparison.OrdinalIgnoreCase))
-                    continue;
-
-                int actionLength = normalizedCategoryName.Length - sortedEntry.Suffix.Length;
-                if (actionLength <= 0)
-                    continue;
-
-                actionName = NormalizeName(normalizedCategoryName.Substring(0, actionLength));
-                if (string.IsNullOrEmpty(actionName))
-                    continue;
-
-                directionIndex = sortedEntry.Entry.DirectionIndex;
-                return true;
-            }
-
-            return false;
-        }
-
         public bool TryGetFlipTargetDirection(int directionIndex, out int targetDirectionIndex)
         {
             IReadOnlyList<FlipEntry> flipEntries = GetFlipEntries();
@@ -399,6 +405,16 @@ namespace KinKeep.SpriteKit
                     continue;
 
                 targetDirectionIndex = flipEntry.TargetDirection;
+                return true;
+            }
+
+            for (int i = 0; i < flipEntries.Count; i++)
+            {
+                FlipEntry flipEntry = flipEntries[i];
+                if (flipEntry.TargetDirection != directionIndex)
+                    continue;
+
+                targetDirectionIndex = flipEntry.SourceDirection;
                 return true;
             }
 
@@ -434,32 +450,6 @@ namespace KinKeep.SpriteKit
         {
             IReadOnlyList<DirectionEntry> directions = GetDirectionEntries();
             return directions.Count > 0 ? directions[0].Index : 0;
-        }
-
-        private readonly struct SortedGeneratorDirectionEntry
-        {
-            public readonly GeneratorDirectionEntry Entry;
-            public readonly string Suffix;
-
-            public SortedGeneratorDirectionEntry(GeneratorDirectionEntry entry, string suffix)
-            {
-                Entry = entry;
-                Suffix = suffix;
-            }
-        }
-
-        private sealed class SortedGeneratorDirectionEntryComparer : IComparer<SortedGeneratorDirectionEntry>
-        {
-            public static readonly SortedGeneratorDirectionEntryComparer Instance = new SortedGeneratorDirectionEntryComparer();
-
-            public int Compare(SortedGeneratorDirectionEntry left, SortedGeneratorDirectionEntry right)
-            {
-                int lengthComparison = right.Suffix.Length.CompareTo(left.Suffix.Length);
-                if (lengthComparison != 0)
-                    return lengthComparison;
-
-                return string.Compare(left.Suffix, right.Suffix, StringComparison.OrdinalIgnoreCase);
-            }
         }
 
         private static string NormalizeName(string value)

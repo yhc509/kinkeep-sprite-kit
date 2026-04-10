@@ -12,7 +12,7 @@ namespace KinKeep.SpriteKit.Editor
         public int CreatedCount { get; private set; }
         public int UpdatedCount { get; private set; }
         public int SkippedExistsCount { get; private set; }
-        public int GeneratedClipCount { get; internal set; }
+        public int GeneratedClipCount { get; private set; }
         public string CreatedAssetPath { get; private set; }
         public string ResultAssetPath { get; private set; }
 
@@ -49,6 +49,11 @@ namespace KinKeep.SpriteKit.Editor
         {
             SkippedExistsCount++;
             AddWarning($"Skipped(Exists): {path}");
+        }
+
+        public void MarkGeneratedClipCount(int count)
+        {
+            GeneratedClipCount = count;
         }
 
         public string BuildSummary()

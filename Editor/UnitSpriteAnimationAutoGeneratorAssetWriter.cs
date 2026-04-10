@@ -34,34 +34,34 @@ namespace KinKeep.SpriteKit.Editor
                 UnitAnimationClip clip = clips[clipIndex];
                 SerializedProperty clipProperty = clipsProperty.GetArrayElementAtIndex(clipIndex);
 
-                clipProperty.FindPropertyRelative("Name").stringValue = clip.Name;
-                clipProperty.FindPropertyRelative("Loop").boolValue = clip.Loop;
-                clipProperty.FindPropertyRelative("DefaultDuration").floatValue = clip.DefaultDuration;
+                clipProperty.FindPropertyRelative("_name").stringValue = clip.Name;
+                clipProperty.FindPropertyRelative("_loop").boolValue = clip.Loop;
+                clipProperty.FindPropertyRelative("_defaultDuration").floatValue = clip.DefaultDuration;
 
-                SerializedProperty spritesProperty = clipProperty.FindPropertyRelative("Sprites");
+                SerializedProperty spritesProperty = clipProperty.FindPropertyRelative("_sprites");
                 spritesProperty.arraySize = clip.Sprites.Length;
                 for (int i = 0; i < clip.Sprites.Length; i++)
                 {
                     spritesProperty.GetArrayElementAtIndex(i).objectReferenceValue = clip.Sprites[i];
                 }
 
-                SerializedProperty framesProperty = clipProperty.FindPropertyRelative("Frames");
+                SerializedProperty framesProperty = clipProperty.FindPropertyRelative("_frames");
                 framesProperty.arraySize = clip.Frames.Length;
                 for (int frameIndex = 0; frameIndex < clip.Frames.Length; frameIndex++)
                 {
                     UnitAnimationFrame frame = clip.Frames[frameIndex];
                     SerializedProperty frameProperty = framesProperty.GetArrayElementAtIndex(frameIndex);
-                    frameProperty.FindPropertyRelative("Duration").floatValue = frame.Duration;
-                    frameProperty.FindPropertyRelative("FlipX").boolValue = frame.FlipX;
+                    frameProperty.FindPropertyRelative("_duration").floatValue = frame.Duration;
+                    frameProperty.FindPropertyRelative("_flipX").boolValue = frame.FlipX;
 
                     FrameEvent[] events = frame.Events ?? Array.Empty<FrameEvent>();
-                    SerializedProperty eventsProperty = frameProperty.FindPropertyRelative("Events");
+                    SerializedProperty eventsProperty = frameProperty.FindPropertyRelative("_events");
                     eventsProperty.arraySize = events.Length;
                     for (int eventIndex = 0; eventIndex < events.Length; eventIndex++)
                     {
                         SerializedProperty eventProperty = eventsProperty.GetArrayElementAtIndex(eventIndex);
-                        eventProperty.FindPropertyRelative("Type").enumValueIndex = (int)events[eventIndex].Type;
-                        eventProperty.FindPropertyRelative("Param").stringValue = events[eventIndex].Param ?? string.Empty;
+                        eventProperty.FindPropertyRelative("_type").enumValueIndex = (int)events[eventIndex].Type;
+                        eventProperty.FindPropertyRelative("_param").stringValue = events[eventIndex].Param ?? string.Empty;
                     }
                 }
             }

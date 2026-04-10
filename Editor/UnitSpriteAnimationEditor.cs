@@ -16,7 +16,7 @@ namespace KinKeep.SpriteKit.Editor
         private int _selectedClipIndex;
         private float _batchDuration = 0.1f;
 
-        [MenuItem("Tools/KinKeep/Sprite Animation Editor")]
+        [MenuItem("KinKeep/Sprite Animation Editor")]
         public static void ShowWindow()
         {
             UnitSpriteAnimationEditor window = GetWindow<UnitSpriteAnimationEditor>("Unit Animation Editor");
@@ -191,12 +191,18 @@ namespace KinKeep.SpriteKit.Editor
                 MessageType.None);
 
             SerializedProperty directionEntriesProperty = _serializedObject.FindProperty("_directionEntries");
+            SerializedProperty flipEntriesProperty = _serializedObject.FindProperty("_flipEntries");
+            SerializedProperty generatorEntriesProperty = _serializedObject.FindProperty("_generatorDirectionEntries");
             SerializedProperty clipsProperty = _serializedObject.FindProperty("_clips");
 
             EditorGUILayout.PropertyField(directionEntriesProperty, true);
-            UnitSpriteAnimationEditorValidationUtility.DrawDirectionWarnings(directionEntriesProperty, clipsProperty);
-            EditorGUILayout.PropertyField(_serializedObject.FindProperty("_flipEntries"), true);
-            EditorGUILayout.PropertyField(_serializedObject.FindProperty("_generatorDirectionEntries"), true);
+            EditorGUILayout.PropertyField(flipEntriesProperty, true);
+            EditorGUILayout.PropertyField(generatorEntriesProperty, true);
+            UnitSpriteAnimationEditorValidationUtility.DrawDirectionWarnings(
+                directionEntriesProperty,
+                flipEntriesProperty,
+                generatorEntriesProperty,
+                clipsProperty);
         }
 
         private void DrawClipList()
@@ -227,7 +233,7 @@ namespace KinKeep.SpriteKit.Editor
             for (int i = 0; i < clipsProperty.arraySize; i++)
             {
                 SerializedProperty clipProperty = clipsProperty.GetArrayElementAtIndex(i);
-                SerializedProperty nameProperty = clipProperty.FindPropertyRelative("Name");
+                SerializedProperty nameProperty = clipProperty.FindPropertyRelative("_name");
                 string displayName = string.IsNullOrEmpty(nameProperty.stringValue) ? $"Clip {i}" : nameProperty.stringValue;
 
                 EditorGUILayout.BeginHorizontal();
@@ -257,23 +263,23 @@ namespace KinKeep.SpriteKit.Editor
             SerializedProperty clipProperty = clipsProperty.GetArrayElementAtIndex(_selectedClipIndex);
             EditorGUILayout.LabelField("Clip Settings", EditorStyles.boldLabel);
 
-            SerializedProperty nameProperty = clipProperty.FindPropertyRelative("Name");
+            SerializedProperty nameProperty = clipProperty.FindPropertyRelative("_name");
             EditorGUILayout.PropertyField(nameProperty);
             DrawClipIdentityEditor(nameProperty);
             EditorGUILayout.HelpBox(
                 "Explicit clip names win first. If a requested direction clip is missing, runtime can fall back through Flip Entries.",
                 MessageType.None);
 
-            EditorGUILayout.PropertyField(clipProperty.FindPropertyRelative("Loop"));
-            EditorGUILayout.PropertyField(clipProperty.FindPropertyRelative("DefaultDuration"));
+            EditorGUILayout.PropertyField(clipProperty.FindPropertyRelative("_loop"));
+            EditorGUILayout.PropertyField(clipProperty.FindPropertyRelative("_defaultDuration"));
 
             EditorGUILayout.Space(10f);
             EditorGUILayout.LabelField("Sprites", EditorStyles.boldLabel);
-            EditorGUILayout.PropertyField(clipProperty.FindPropertyRelative("Sprites"), true);
+            EditorGUILayout.PropertyField(clipProperty.FindPropertyRelative("_sprites"), true);
 
             EditorGUILayout.Space(10f);
             EditorGUILayout.LabelField("Frames", EditorStyles.boldLabel);
-            SerializedProperty framesProperty = clipProperty.FindPropertyRelative("Frames");
+            SerializedProperty framesProperty = clipProperty.FindPropertyRelative("_frames");
             DrawBatchDurationEditor(framesProperty);
 
             for (int i = 0; i < framesProperty.arraySize; i++)
@@ -326,7 +332,7 @@ namespace KinKeep.SpriteKit.Editor
                 for (int i = 0; i < framesProperty.arraySize; i++)
                 {
                     SerializedProperty frameProperty = framesProperty.GetArrayElementAtIndex(i);
-                    frameProperty.FindPropertyRelative("Duration").floatValue = _batchDuration;
+                    frameProperty.FindPropertyRelative("_duration").floatValue = _batchDuration;
                 }
             }
 
@@ -341,10 +347,10 @@ namespace KinKeep.SpriteKit.Editor
 
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField($"Frame {index}", EditorStyles.boldLabel, GUILayout.Width(70f));
-            EditorGUILayout.PropertyField(frameProperty.FindPropertyRelative("Duration"), GUIContent.none, GUILayout.Width(60f));
+            EditorGUILayout.PropertyField(frameProperty.FindPropertyRelative("_duration"), GUIContent.none, GUILayout.Width(60f));
             EditorGUILayout.LabelField("s", GUILayout.Width(15f));
 
-            SerializedProperty flipXProperty = frameProperty.FindPropertyRelative("FlipX");
+            SerializedProperty flipXProperty = frameProperty.FindPropertyRelative("_flipX");
             flipXProperty.boolValue = GUILayout.Toggle(flipXProperty.boolValue, "FlipX", GUILayout.Width(50f));
 
             if (GUILayout.Button("▶", GUILayout.Width(25f)))
@@ -354,7 +360,7 @@ namespace KinKeep.SpriteKit.Editor
 
             EditorGUILayout.EndHorizontal();
 
-            SerializedProperty eventsProperty = frameProperty.FindPropertyRelative("Events");
+            SerializedProperty eventsProperty = frameProperty.FindPropertyRelative("_events");
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField("Events", GUILayout.Width(50f));
             if (GUILayout.Button("+", GUILayout.Width(20f)))
@@ -368,8 +374,8 @@ namespace KinKeep.SpriteKit.Editor
                 SerializedProperty eventProperty = eventsProperty.GetArrayElementAtIndex(i);
                 EditorGUILayout.BeginHorizontal();
                 GUILayout.Space(20f);
-                EditorGUILayout.PropertyField(eventProperty.FindPropertyRelative("Type"), GUIContent.none, GUILayout.Width(70f));
-                EditorGUILayout.PropertyField(eventProperty.FindPropertyRelative("Param"), GUIContent.none);
+                EditorGUILayout.PropertyField(eventProperty.FindPropertyRelative("_type"), GUIContent.none, GUILayout.Width(70f));
+                EditorGUILayout.PropertyField(eventProperty.FindPropertyRelative("_param"), GUIContent.none);
 
                 bool isRemoved = false;
                 if (GUILayout.Button("×", GUILayout.Width(20f)))

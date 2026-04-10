@@ -3,6 +3,7 @@ using UnityEngine;
 
 namespace KinKeep.SpriteKit
 {
+    [RequireComponent(typeof(SpriteRenderer))]
     public class SpriteAnimator : MonoBehaviour
     {
         [SerializeField] private SpriteRenderer _renderer;
@@ -27,7 +28,8 @@ namespace KinKeep.SpriteKit
 
         private void Awake()
         {
-            _renderer = GetComponent<SpriteRenderer>();
+            if (_renderer == null)
+                _renderer = GetComponent<SpriteRenderer>();
         }
 
         private void Update()

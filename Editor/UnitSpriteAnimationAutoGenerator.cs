@@ -81,7 +81,7 @@ namespace KinKeep.SpriteKit.Editor
                     BuildFrameSource(sourceLibrary, settingsAsset, report);
 
                 List<UnitAnimationClip> clips = BuildClips(frameSource, profile, settingsAsset, report);
-                report.GeneratedClipCount = clips.Count;
+                report.MarkGeneratedClipCount(clips.Count);
 
                 if (clips.Count == 0)
                 {
@@ -145,7 +145,7 @@ namespace KinKeep.SpriteKit.Editor
 
             foreach (string category in categories)
             {
-                if (!settingsAsset.TryParseGeneratorDirection(category, out string action, out int directionIndex))
+                if (!TryParseGeneratorDirection(settingsAsset, category, out string action, out int directionIndex))
                     continue;
 
                 List<string> labels = GetSortedLabels(sourceLibrary, category);
@@ -259,14 +259,12 @@ namespace KinKeep.SpriteKit.Editor
                         continue;
                     }
 
-                    var clip = new UnitAnimationClip
-                    {
-                        Name = clipName,
-                        Sprites = resolvedFrames.ToArray(),
-                        Loop = IsLoopAnimationType(typeName),
-                        DefaultDuration = DefaultDuration,
-                        Frames = CreateFrames(typeName, resolvedFrames.Count)
-                    };
+                    var clip = new UnitAnimationClip(
+                        clipName,
+                        resolvedFrames.ToArray(),
+                        IsLoopAnimationType(typeName),
+                        DefaultDuration,
+                        CreateFrames(typeName, resolvedFrames.Count));
 
                     clips.Add(clip);
                 }
@@ -324,21 +322,22 @@ namespace KinKeep.SpriteKit.Editor
             var frames = new UnitAnimationFrame[frameCount];
             for (int i = 0; i < frameCount; i++)
             {
-                frames[i] = new UnitAnimationFrame
-                {
-                    Duration = DefaultDuration,
-                    FlipX = false,
-                    Events = Array.Empty<FrameEvent>()
-                };
+                frames[i] = new UnitAnimationFrame(
+                    DefaultDuration,
+                    false,
+                    Array.Empty<FrameEvent>());
             }
 
             if (IsHitAnimationType(typeName) && frameCount > 0)
             {
                 int hitIndex = frameCount / 2;
-                frames[hitIndex].Events = new[]
-                {
-                    new FrameEvent { Type = FrameEventType.Hit, Param = string.Empty }
-                };
+                frames[hitIndex] = new UnitAnimationFrame(
+                    DefaultDuration,
+                    false,
+                    new[]
+                    {
+                        new FrameEvent(FrameEventType.Hit, string.Empty)
+                    });
             }
 
             return frames;
@@ -392,6 +391,86 @@ namespace KinKeep.SpriteKit.Editor
             return settingsAsset.TryGetDirectionName(directionIndex, out string directionName)
                 ? directionName
                 : directionIndex.ToString();
+        }
+
+        private static bool TryParseGeneratorDirection(
+            UnitSpriteAnimation settingsAsset,
+            string categoryName,
+            out string actionName,
+            out int directionIndex)
+        {
+            actionName = string.Empty;
+            directionIndex = GetFallbackDirectionIndex(settingsAsset);
+
+            string normalizedCategoryName = UnitSpriteAnimationGeneratorPathUtility.NormalizeName(categoryName);
+            if (string.IsNullOrEmpty(normalizedCategoryName))
+                return false;
+
+            IReadOnlyList<GeneratorDirectionEntry> generatorDirections = settingsAsset.GeneratorDirectionEntries;
+            var sortedEntries = new List<SortedGeneratorDirectionEntry>(generatorDirections.Count);
+            for (int i = 0; i < generatorDirections.Count; i++)
+            {
+                GeneratorDirectionEntry entry = generatorDirections[i];
+                string suffix = UnitSpriteAnimationGeneratorPathUtility.NormalizeName(entry.Suffix);
+                if (string.IsNullOrEmpty(suffix))
+                    continue;
+
+                sortedEntries.Add(new SortedGeneratorDirectionEntry(entry, suffix));
+            }
+
+            sortedEntries.Sort(SortedGeneratorDirectionEntryComparer.Instance);
+            for (int i = 0; i < sortedEntries.Count; i++)
+            {
+                SortedGeneratorDirectionEntry sortedEntry = sortedEntries[i];
+                if (!normalizedCategoryName.EndsWith(sortedEntry.Suffix, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                int actionLength = normalizedCategoryName.Length - sortedEntry.Suffix.Length;
+                if (actionLength <= 0)
+                    continue;
+
+                actionName = UnitSpriteAnimationGeneratorPathUtility.NormalizeName(
+                    normalizedCategoryName.Substring(0, actionLength));
+                if (string.IsNullOrEmpty(actionName))
+                    continue;
+
+                directionIndex = sortedEntry.Entry.DirectionIndex;
+                return true;
+            }
+
+            return false;
+        }
+
+        private static int GetFallbackDirectionIndex(UnitSpriteAnimation settingsAsset)
+        {
+            IReadOnlyList<DirectionEntry> directions = settingsAsset.DirectionEntries;
+            return directions.Count > 0 ? directions[0].Index : 0;
+        }
+
+        private readonly struct SortedGeneratorDirectionEntry
+        {
+            public readonly GeneratorDirectionEntry Entry;
+            public readonly string Suffix;
+
+            public SortedGeneratorDirectionEntry(GeneratorDirectionEntry entry, string suffix)
+            {
+                Entry = entry;
+                Suffix = suffix;
+            }
+        }
+
+        private sealed class SortedGeneratorDirectionEntryComparer : IComparer<SortedGeneratorDirectionEntry>
+        {
+            public static readonly SortedGeneratorDirectionEntryComparer Instance = new SortedGeneratorDirectionEntryComparer();
+
+            public int Compare(SortedGeneratorDirectionEntry left, SortedGeneratorDirectionEntry right)
+            {
+                int lengthComparison = right.Suffix.Length.CompareTo(left.Suffix.Length);
+                if (lengthComparison != 0)
+                    return lengthComparison;
+
+                return string.Compare(left.Suffix, right.Suffix, StringComparison.OrdinalIgnoreCase);
+            }
         }
 
     }
