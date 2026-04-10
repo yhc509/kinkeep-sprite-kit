@@ -2,57 +2,60 @@ using System;
 using System.Collections;
 using UnityEngine;
 
-public static class AnimationEventUtil
+namespace KinKeep.SpriteKit
 {
-    public static IEnumerator WaitAnimationComplete(SpriteAnimator animator)
+    public static class AnimationEventUtil
     {
-        bool done = false;
-        void OnComplete() => done = true;
-        
-        animator.OnAnimationComplete += OnComplete;
-        try
+        public static IEnumerator WaitAnimationComplete(SpriteAnimator animator)
         {
-            yield return new WaitUntil(() => done);
+            bool isDone = false;
+            void OnComplete() => isDone = true;
+
+            animator.OnAnimationComplete += OnComplete;
+            try
+            {
+                yield return new WaitUntil(() => isDone);
+            }
+            finally
+            {
+                animator.OnAnimationComplete -= OnComplete;
+            }
         }
-        finally
+
+        public static IEnumerator WaitHit(SpriteAnimator animator)
         {
-            animator.OnAnimationComplete -= OnComplete;
+            bool hasHit = false;
+            void OnHit() => hasHit = true;
+
+            animator.OnHit += OnHit;
+            try
+            {
+                yield return new WaitUntil(() => hasHit);
+            }
+            finally
+            {
+                animator.OnHit -= OnHit;
+            }
         }
-    }
-    
-    public static IEnumerator WaitHit(SpriteAnimator animator)
-    {
-        bool hit = false;
-        void OnHit() => hit = true;
-        
-        animator.OnHit += OnHit;
-        try
+
+        public static IEnumerator WaitHitWithCallback(SpriteAnimator animator, Action onHit)
         {
-            yield return new WaitUntil(() => hit);
-        }
-        finally
-        {
-            animator.OnHit -= OnHit;
-        }
-    }
-    
-    public static IEnumerator WaitHitWithCallback(SpriteAnimator animator, Action onHit)
-    {
-        bool hit = false;
-        void OnHit()
-        {
-            hit = true;
-            onHit?.Invoke();
-        }
-        
-        animator.OnHit += OnHit;
-        try
-        {
-            yield return new WaitUntil(() => hit);
-        }
-        finally
-        {
-            animator.OnHit -= OnHit;
+            bool hasHit = false;
+            void OnHit()
+            {
+                hasHit = true;
+                onHit?.Invoke();
+            }
+
+            animator.OnHit += OnHit;
+            try
+            {
+                yield return new WaitUntil(() => hasHit);
+            }
+            finally
+            {
+                animator.OnHit -= OnHit;
+            }
         }
     }
 }
