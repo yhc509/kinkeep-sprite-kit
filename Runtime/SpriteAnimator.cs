@@ -1,247 +1,256 @@
 using System;
 using UnityEngine;
 
-public class SpriteAnimator : MonoBehaviour
+namespace KinKeep.SpriteKit
 {
-    [SerializeField] private SpriteRenderer _renderer;
-    [SerializeField] private UnitSpriteAnimation _animation;
-
-    private int _directionIndex = 0;
-    private bool _flipX = false;
-    private UnitAnimationClip _currentClip;
-    private int _frameIndex;
-    private float _frameTime;
-    private bool _isPlaying;
-    private string _currentTypeName = string.Empty;
-    private string _currentClipName = string.Empty;
-
-    public event Action OnHit;
-    public event Action OnAnimationComplete;
-    public event Action<FrameEvent> OnFrameEvent;
-
-    public bool IsPlaying => _isPlaying;
-    public UnitAnimationClip CurrentClip => _currentClip;
-
-    private void Awake()
+    [RequireComponent(typeof(SpriteRenderer))]
+    public class SpriteAnimator : MonoBehaviour
     {
-        EnsureRenderer();
-    }
+        [SerializeField] private SpriteRenderer _renderer;
+        [SerializeField] private UnitSpriteAnimation _animation;
 
-    private void Update()
-    {
-        if (!_isPlaying || _currentClip == null) return;
-        if (_currentClip.Sprites == null || _currentClip.Sprites.Length == 0) return;
+        private int _directionIndex;
+        private bool _isExternallyFlipped;
+        private bool _isDirectionResolvedFlipped;
+        private UnitAnimationClip _currentClip;
+        private int _frameIndex;
+        private float _frameTime;
+        private bool _isPlaying;
+        private string _currentTypeName = string.Empty;
+        private string _currentClipName = string.Empty;
 
-        _frameTime += Time.deltaTime;
-        
-        float frameDuration = _currentClip.GetFrameDuration(_frameIndex);
-        
-        while (_frameTime >= frameDuration)
+        public event Action OnHit;
+        public event Action OnAnimationComplete;
+        public event Action<FrameEvent> OnFrameEvent;
+
+        public bool IsPlaying => _isPlaying;
+        public UnitAnimationClip CurrentClip => _currentClip;
+
+        private void Awake()
         {
-            _frameTime -= frameDuration;
-            _frameIndex++;
+            if (_renderer == null)
+                _renderer = GetComponent<SpriteRenderer>();
+        }
+
+        private void Update()
+        {
+            if (!_isPlaying || _currentClip == null)
+                return;
+
+            if (_currentClip.Sprites == null || _currentClip.Sprites.Length == 0)
+                return;
+
+            _frameTime += Time.deltaTime;
+
+            float frameDuration = _currentClip.GetFrameDuration(_frameIndex);
+            while (_frameTime >= frameDuration)
+            {
+                _frameTime -= frameDuration;
+                _frameIndex++;
+
+                if (_frameIndex >= _currentClip.Sprites.Length)
+                {
+                    if (_currentClip.Loop)
+                    {
+                        _frameIndex = 0;
+                    }
+                    else
+                    {
+                        _frameIndex = _currentClip.Sprites.Length - 1;
+                        _isPlaying = false;
+                        OnAnimationComplete?.Invoke();
+                        break;
+                    }
+                }
+
+                ProcessFrameEvents(_frameIndex);
+                frameDuration = _currentClip.GetFrameDuration(_frameIndex);
+            }
+
+            ApplyFrame();
+        }
+
+        public void SetAnimation(UnitSpriteAnimation animation)
+        {
+            _animation = animation;
+            _currentClip = null;
+            _frameIndex = 0;
+            _frameTime = 0f;
+            _isPlaying = false;
+            _currentTypeName = string.Empty;
+            _currentClipName = string.Empty;
+            _isDirectionResolvedFlipped = false;
+        }
+
+        public void SetRenderer(SpriteRenderer renderer)
+        {
+            _renderer = renderer;
+        }
+
+        public void Play(string name)
+        {
+            EnsureAnimationAssigned();
+
+            if (_animation.TryGetDirectionalClip(name, _directionIndex, out UnitAnimationClip directionalClip, out bool isDirectionResolvedFlipped)
+                && TryStartClip(directionalClip, isDirectionResolvedFlipped))
+            {
+                _currentTypeName = name;
+                _currentClipName = string.Empty;
+                return;
+            }
+
+            if (!_animation.TryGetClip(name, out UnitAnimationClip clip) || !TryStartClip(clip, false))
+            {
+                throw new InvalidOperationException(
+                    $"[SpriteAnimator] Clip not found. name={name}, directionIndex={_directionIndex}");
+            }
+
+            _currentTypeName = string.Empty;
+            _currentClipName = name;
+        }
+
+        public void Stop()
+        {
+            _isPlaying = false;
+        }
+
+        public float GetDuration(string name)
+        {
+            EnsureAnimationAssigned();
+
+            if (_animation.TryGetDirectionalClip(name, _directionIndex, out UnitAnimationClip directionalClip, out _))
+                return directionalClip.GetTotalDuration();
+
+            if (!_animation.TryGetClip(name, out UnitAnimationClip clip))
+                throw new InvalidOperationException($"[SpriteAnimator] Duration target clip missing. name={name}");
+
+            return clip.GetTotalDuration();
+        }
+
+        public void SetColor(Color color)
+        {
+            _renderer.color = color;
+        }
+
+        public void SetFlipX(bool isFlipped)
+        {
+            _isExternallyFlipped = isFlipped;
+            ApplyFrame();
+        }
+
+        public void SetDirection(int directionIndex, bool isFlipped)
+        {
+            _directionIndex = directionIndex;
+            // SetFlipX and SetDirection(bool isFlipped) both control the same external flip override.
+            // Direction-based fallback flip is resolved only through TryGetDirectionalClip.
+            _isExternallyFlipped = isFlipped;
+            ReevaluateCurrentClipForDirection();
+            ApplyFrame();
+        }
+
+        private void ApplyFrame()
+        {
+            if (_currentClip == null)
+            {
+                _renderer.flipX = _isExternallyFlipped;
+                return;
+            }
 
             if (_frameIndex >= _currentClip.Sprites.Length)
+                return;
+
+            _renderer.sprite = _currentClip.Sprites[_frameIndex];
+
+            bool frameFlipX = false;
+            if (_currentClip.Frames != null && _frameIndex < _currentClip.Frames.Length && _currentClip.Frames[_frameIndex] != null)
+                frameFlipX = _currentClip.Frames[_frameIndex].FlipX;
+
+            _renderer.flipX = _isExternallyFlipped ^ _isDirectionResolvedFlipped ^ frameFlipX;
+        }
+
+        private void ProcessFrameEvents(int frameIndex)
+        {
+            if (_currentClip.Frames == null || frameIndex >= _currentClip.Frames.Length)
+                return;
+
+            UnitAnimationFrame frame = _currentClip.Frames[frameIndex];
+            if (frame == null || frame.Events == null)
+                return;
+
+            for (int i = 0; i < frame.Events.Length; i++)
             {
-                if (_currentClip.Loop)
+                FrameEvent frameEvent = frame.Events[i];
+                switch (frameEvent.Type)
                 {
-                    _frameIndex = 0;
-                }
-                else
-                {
-                    _frameIndex = _currentClip.Sprites.Length - 1;
-                    _isPlaying = false;
-                    OnAnimationComplete?.Invoke();
-                    break;
+                    case FrameEventType.Hit:
+                    case FrameEventType.Skill:
+                        OnHit?.Invoke();
+                        break;
+                    default:
+                        OnFrameEvent?.Invoke(frameEvent);
+                        break;
                 }
             }
-
-            ProcessFrameEvents(_frameIndex);
-            frameDuration = _currentClip.GetFrameDuration(_frameIndex);
         }
 
-        ApplyFrame();
-    }
-
-    public void SetAnimation(UnitSpriteAnimation animation)
-    {
-        EnsureRenderer();
-        _animation = animation;
-        _currentClip = null;
-        _frameIndex = 0;
-        _frameTime = 0f;
-        _isPlaying = false;
-        _currentTypeName = string.Empty;
-        _currentClipName = string.Empty;
-    }
-
-    public void SetRenderer(SpriteRenderer renderer)
-    {
-        _renderer = renderer;
-    }
-
-    public void Play(string name)
-    {
-        EnsureAnimationAssigned();
-
-        var clip = _animation.GetClip(name, _directionIndex);
-        if (clip != null && TryStartClip(clip))
+        private bool TryStartClip(UnitAnimationClip clip, bool isDirectionResolvedFlipped)
         {
-            _currentTypeName = name;
-            _currentClipName = string.Empty;
-            return;
+            if (clip == null || clip.Sprites == null || clip.Sprites.Length == 0)
+                return false;
+
+            _currentClip = clip;
+            _isDirectionResolvedFlipped = isDirectionResolvedFlipped;
+            _frameIndex = 0;
+            _frameTime = 0f;
+            _isPlaying = true;
+
+            ProcessFrameEvents(0);
+            ApplyFrame();
+            return true;
         }
 
-        clip = _animation.GetClip(name);
-        if (!TryStartClip(clip))
+        private void ReevaluateCurrentClipForDirection()
         {
-            throw new InvalidOperationException($"[SpriteAnimator] Clip not found. name={name}, directionIndex={_directionIndex}");
+            if (_animation == null || _currentClip == null)
+                return;
+
+            if (!TryResolveCurrentClipByDirection(out UnitAnimationClip directionalClip, out bool isDirectionResolvedFlipped))
+                return;
+
+            if (directionalClip == null || directionalClip.Sprites == null || directionalClip.Sprites.Length == 0)
+                return;
+
+            bool isSameClip = ReferenceEquals(directionalClip, _currentClip);
+            if (isSameClip && _isDirectionResolvedFlipped == isDirectionResolvedFlipped)
+                return;
+
+            _currentClip = directionalClip;
+            _isDirectionResolvedFlipped = isDirectionResolvedFlipped;
+            _frameIndex = Mathf.Clamp(_frameIndex, 0, _currentClip.Sprites.Length - 1);
+            _frameTime = Mathf.Clamp(_frameTime, 0f, _currentClip.GetFrameDuration(_frameIndex));
         }
 
-        _currentTypeName = string.Empty;
-        _currentClipName = name;
-    }
-
-    public void Stop()
-    {
-        _isPlaying = false;
-    }
-
-    public float GetDuration(string name)
-    {
-        EnsureAnimationAssigned();
-
-        var clip = _animation.GetClip(name, _directionIndex);
-        if (clip != null && clip.Sprites != null && clip.Sprites.Length > 0)
-            return clip.GetTotalDuration();
-
-        clip = _animation.GetClip(name);
-        if (clip == null || clip.Sprites == null || clip.Sprites.Length == 0)
+        private bool TryResolveCurrentClipByDirection(out UnitAnimationClip clip, out bool isDirectionResolvedFlipped)
         {
-            throw new InvalidOperationException($"[SpriteAnimator] Duration target clip missing. name={name}");
-        }
+            clip = _currentClip;
+            isDirectionResolvedFlipped = _isDirectionResolvedFlipped;
 
-        return clip.GetTotalDuration();
-    }
+            if (!string.IsNullOrEmpty(_currentTypeName))
+                return _animation.TryGetDirectionalClip(_currentTypeName, _directionIndex, out clip, out isDirectionResolvedFlipped);
 
-    public void SetColor(Color color)
-    {
-        EnsureRenderer();
-        if (_renderer != null)
-            _renderer.color = color;
-    }
-
-    public void SetFlipX(bool flip)
-    {
-        EnsureRenderer();
-        if (_renderer != null)
-            _renderer.flipX = flip;
-    }
-
-    public void SetDirection(int directionIndex, bool flipX)
-    {
-        _directionIndex = directionIndex;
-        _flipX = flipX;
-        ReevaluateCurrentClipForDirection();
-        ApplyFrame();
-    }
-
-    private void ApplyFrame()
-    {
-        EnsureRenderer();
-        if (_renderer == null) return;
-
-        if (_currentClip == null)
-        {
-            _renderer.flipX = _flipX;
-            return;
-        }
-
-        if (_frameIndex >= _currentClip.Sprites.Length) return;
-
-        _renderer.sprite = _currentClip.Sprites[_frameIndex];
-
-        bool frameFlipX = false;
-        if (_currentClip.Frames != null && _frameIndex < _currentClip.Frames.Length)
-            frameFlipX = _currentClip.Frames[_frameIndex].FlipX;
-
-        _renderer.flipX = _flipX ^ frameFlipX;
-    }
-
-    private void ProcessFrameEvents(int frameIndex)
-    {
-        if (_currentClip.Frames == null) return;
-        if (frameIndex >= _currentClip.Frames.Length) return;
-        
-        var frame = _currentClip.Frames[frameIndex];
-        if (frame.Events == null) return;
-
-        foreach (var evt in frame.Events)
-        {
-            switch (evt.Type)
+            if (!string.IsNullOrEmpty(_currentClipName))
             {
-                case FrameEventType.Hit:
-                case FrameEventType.Skill:
-                    OnHit?.Invoke();
-                    break;
-                default:
-                    OnFrameEvent?.Invoke(evt);
-                    break;
+                isDirectionResolvedFlipped = false;
+                return _animation.TryGetClip(_currentClipName, out clip);
             }
+
+            return clip != null;
         }
-    }
 
-    private bool TryStartClip(UnitAnimationClip clip)
-    {
-        if (clip == null) return false;
-        if (clip.Sprites == null || clip.Sprites.Length == 0) return false;
-
-        _currentClip = clip;
-        _frameIndex = 0;
-        _frameTime = 0f;
-        _isPlaying = true;
-
-        ProcessFrameEvents(0);
-        ApplyFrame();
-        return true;
-    }
-
-    private void ReevaluateCurrentClipForDirection()
-    {
-        if (_animation == null || _currentClip == null) return;
-
-        var directionalClip = ResolveCurrentClipByDirection();
-        if (directionalClip == null) return;
-        if (directionalClip.Sprites == null || directionalClip.Sprites.Length == 0) return;
-        if (ReferenceEquals(directionalClip, _currentClip)) return;
-
-        _currentClip = directionalClip;
-        _frameIndex = Mathf.Clamp(_frameIndex, 0, _currentClip.Sprites.Length - 1);
-        _frameTime = Mathf.Clamp(_frameTime, 0f, _currentClip.GetFrameDuration(_frameIndex));
-    }
-
-    private UnitAnimationClip ResolveCurrentClipByDirection()
-    {
-        if (!string.IsNullOrEmpty(_currentTypeName))
-            return _animation.GetClip(_currentTypeName, _directionIndex);
-
-        if (!string.IsNullOrEmpty(_currentClipName))
-            return _animation.GetClip(_currentClipName);
-
-        return _currentClip;
-    }
-
-    private void EnsureRenderer()
-    {
-        if (_renderer == null)
-            _renderer = GetComponent<SpriteRenderer>();
-    }
-
-    private void EnsureAnimationAssigned()
-    {
-        if (_animation == null)
+        private void EnsureAnimationAssigned()
         {
-            throw new InvalidOperationException("[SpriteAnimator] UnitSpriteAnimation is not assigned.");
+            if (_animation == null)
+                throw new InvalidOperationException("[SpriteAnimator] UnitSpriteAnimation is not assigned.");
         }
     }
 }
